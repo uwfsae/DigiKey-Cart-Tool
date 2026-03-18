@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DigiKey Cart Reference Tool</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f4f4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .site-header {
+      background: #CC0000;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    }
+    .site-header .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      text-decoration: none;
+    }
+    .site-header .logo svg { flex-shrink: 0; }
+    .site-header h1 { font-size: 17px; font-weight: 600; color: #fff; letter-spacing: -0.01em; }
+    .site-header .tagline { font-size: 13px; color: rgba(255,255,255,0.72); margin-left: auto; }
+
+    /* ── Layout ── */
+    main {
+      flex: 1;
+      max-width: 760px;
+      width: 100%;
+      margin: 36px auto;
+      padding: 0 16px 48px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e2e2e2;
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Steps ── */
+    .step-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #CC0000;
+      margin-bottom: 10px;
+    }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #CC0000;
+      border-radius: 8px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s;
+      background: transparent;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { background: #fff5f5; }
+    .drop-zone.has-file { border-style: solid; background: #fff5f5; }
+    .drop-zone input[type="file"] { display: none; }
+    .drop-icon { color: #CC0000; margin-bottom: 10px; }
+    .drop-text { font-size: 15px; color: #444; }
+    .drop-text strong { color: #111; }
+    .drop-sub { font-size: 12px; color: #888; margin-top: 4px; }
+    .file-name { font-size: 13px; font-weight: 600; color: #CC0000; margin-top: 10px; display: none; }
+
+    /* ── Reference input ── */
+    .ref-input {
+      width: 100%;
+      height: 42px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      padding: 0 14px;
+      font-size: 15px;
+      color: #111;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .ref-input:focus {
+      outline: none;
+      border-color: #CC0000;
+      box-shadow: 0 0 0 3px rgba(204,0,0,0.1);
+    }
+
+    .mode-row { display: flex; gap: 8px; margin-top: 12px; }
+    .mode-btn {
+      flex: 1;
+      padding: 9px 12px;
+      font-size: 13px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #fff;
+      color: #555;
+      font-family: inherit;
+      transition: all 0.12s;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .mode-btn:hover { border-color: #CC0000; color: #CC0000; }
+    .mode-btn.active { border-color: #CC0000; background: #fff0f0; color: #CC0000; font-weight: 600; }
+
+    /* ── Process button ── */
+    .process-btn {
+      width: 100%;
+      height: 46px;
+      background: #CC0000;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+      margin-top: 20px;
+    }
+    .process-btn:hover:not(:disabled) { background: #aa0000; }
+    .process-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Error ── */
+    .error {
+      color: #900;
+      font-size: 13px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: #fff0f0;
+      border-radius: 6px;
+      border-left: 3px solid #CC0000;
+      display: none;
+    }
+
+    /* ── Summary ── */
+    .summary-card { display: none; }
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .summary-title { font-size: 17px; font-weight: 600; color: #111; }
+    .summary-meta { display: flex; gap: 24px; }
+    .meta-item { text-align: right; }
+    .meta-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .meta-value { font-size: 18px; font-weight: 700; color: #111; }
+    .meta-value.red { color: #CC0000; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid #eee; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #eee;
+      background: #f9f9f9;
+      white-space: nowrap;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; color: #222; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-overwritten { background: #fff0f0; color: #CC0000; }
+    .badge-filled      { background: #e6f1fb; color: #185FA5; }
+    .badge-kept        { background: #f0f0f0; color: #666; }
+    .pn { font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; color: #555; }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #555; }
+
+    .download-btn {
+      margin-top: 20px;
+      width: 100%;
+      height: 46px;
+      background: #fff;
+      border: 2px solid #CC0000;
+      color: #CC0000;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .download-btn:hover { background: #fff0f0; }
+
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="6" fill="rgba(255,255,255,0.2)"/>
+      <path d="M6 14L11 19L22 9" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h1>DigiKey Cart Reference Tool</h1>
+  </div>
+  <span class="tagline">UW Student Organization Purchasing</span>
+</header>
+
+<main>
+
+  <div class="card">
+    <div class="step-label">Step 1 — Upload your DigiKey cart CSV</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".csv">
+      <div class="drop-icon">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="6" width="28" height="24" rx="3"/>
+          <path d="M18 26V16M14 20l4-4 4 4"/>
+        </svg>
+      </div>
+      <div class="drop-text"><strong>Click to upload</strong> or drag &amp; drop</div>
+      <div class="drop-sub">Export your cart from DigiKey: Cart → Export → CSV</div>
+      <div class="file-name" id="fileName"></div>
+    </div>
+    <div class="error" id="fileError"></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Step 2 — Enter customer reference</div>
+    <input class="ref-input" type="text" id="refInput" placeholder="e.g. BSPD, PF, CAN, MY-PROJECT…" maxlength="64">
+    <div class="mode-row">
+      <button class="mode-btn active" id="modeOverwrite" onclick="setMode('overwrite')">
+        Overwrite all rows
+      </button>
+      <button class="mode-btn" id="modeFill" onclick="setMode('fill')">
+        Fill blank rows only
+      </button>
+    </div>
+  </div>
+
+  <button class="process-btn" id="processBtn" onclick="process()" disabled>
+    Apply reference &amp; preview →
+  </button>
+  <div class="error" id="processError"></div>
+
+  <!-- Summary -->
+  <div class="card summary-card" id="summaryCard">
+    <div class="summary-header">
+      <div class="summary-title" id="summaryTitle">Cart summary</div>
+      <div class="summary-meta">
+        <div class="meta-item">
+          <div class="meta-label">Line items</div>
+          <div class="meta-value" id="metaItems">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Total (USD)</div>
+          <div class="meta-value red" id="metaTotal">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>DigiKey Part #</th>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>Unit price</th>
+            <th>Extended</th>
+            <th>Customer reference</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="badge badge-overwritten">REF</span> Overwritten</div>
+      <div class="legend-item"><span class="badge badge-filled">REF</span> Newly filled (was blank)</div>
+      <div class="legend-item"><span class="badge badge-kept">REF</span> Kept as-is</div>
+    </div>
+
+    <button class="download-btn" onclick="downloadCSV()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 2v8M5 7l3 3 3-3M2 13h12"/>
+      </svg>
+      Download modified CSV
+    </button>
+  </div>
+
+</main>
+
+<footer>DigiKey Cart Reference Tool &mdash; UW Student Purchasing &mdash; Runs entirely in your browser, no data is uploaded anywhere.</footer>
+
+<script>
+  let parsedRows = [], headers = [], mode = 'overwrite', modifiedRows = [], originalFileName = 'cart_modified.csv';
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById('modeOverwrite').classList.toggle('active', m === 'overwrite');
+    document.getElementById('modeFill').classList.toggle('active', m === 'fill');
+  }
+
+  const dropZone = document.getElementById('dropZone');
+  dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  document.getElementById('fileInput').addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+  document.getElementById('refInput').addEventListener('input', updateBtn);
+
+  function handleFile(file) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      showError('fileError', 'Please upload a .csv file exported from DigiKey.'); return;
+    }
+    hideError('fileError');
+    originalFileName = file.name.replace(/\.csv$/i, '_modified.csv');
+    const fn = document.getElementById('fileName');
+    fn.textContent = file.name; fn.style.display = 'block';
+    dropZone.classList.add('has-file');
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { parseCSV(e.target.result); updateBtn(); }
+      catch(err) { showError('fileError', 'Could not parse CSV: ' + err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    headers = parseCSVLine(lines[0]);
+    parsedRows = lines.slice(1).map(parseCSVLine);
+  }
+
+  function parseCSVLine(line) {
+    const result = []; let inQ = false, cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    result.push(cur); return result;
+  }
+
+  function updateBtn() {
+    document.getElementById('processBtn').disabled = parsedRows.length === 0;
+  }
+
+  function colIdx(name) {
+    return headers.findIndex(h => h.replace(/^"|"$/g,'').trim().toLowerCase() === name.toLowerCase());
+  }
+
+  function cellVal(row, idx) {
+    return idx >= 0 ? (row[idx] || '').replace(/^"|"$/g,'').trim() : '';
+  }
+
+  function process() {
+    hideError('processError');
+    const ref = document.getElementById('refInput').value.trim();
+    if (!ref) { showError('processError', 'Please enter a customer reference.'); return; }
+
+    const refIdx = colIdx('customer reference');
+    if (refIdx === -1) { showError('processError', 'Could not find "Customer Reference" column. Is this a DigiKey cart export?'); return; }
+
+    modifiedRows = parsedRows.map(row => {
+      const newRow = [...row];
+      const existing = cellVal(row, refIdx);
+      if (mode === 'overwrite' || (mode === 'fill' && existing === '')) {
+        newRow[refIdx] = ref;
+      }
+      return newRow;
+    });
+
+    renderSummary(modifiedRows, refIdx);
+    document.getElementById('summaryCard').style.display = 'block';
+    document.getElementById('summaryCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderSummary(rows, refIdx) {
+    const priceIdx = colIdx('extended price usd');
+    const unitIdx  = colIdx('unit price');
+    const qtyIdx   = colIdx('quantity');
+    const pnIdx    = colIdx('part number');
+    const descIdx  = colIdx('description');
+    const idxIdx   = colIdx('index');
+
+    let total = 0;
+    rows.forEach(r => { const v = parseFloat(cellVal(r, priceIdx)); if (!isNaN(v)) total += v; });
+
+    document.getElementById('metaItems').textContent = rows.length;
+    document.getElementById('metaTotal').textContent = '$' + total.toFixed(2);
+    document.getElementById('summaryTitle').textContent = 'Cart — ' + rows.length + ' line items';
+
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    rows.forEach((row, i) => {
+      const origRef = cellVal(parsedRows[i], refIdx);
+      const newRef  = cellVal(row, refIdx);
+      const wasEmpty = origRef === '';
+      const changed  = newRef !== origRef;
+
+      let cls = 'badge-kept';
+      if (changed && wasEmpty) cls = 'badge-filled';
+      else if (changed)        cls = 'badge-overwritten';
+
+      const extended = parseFloat(cellVal(row, priceIdx));
+      const unit     = parseFloat(cellVal(row, unitIdx));
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:#aaa;font-size:12px;">${cellVal(row, idxIdx) || (i + 1)}</td>
+        <td><span class="pn">${cellVal(row, pnIdx)}</span></td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#666;">${cellVal(row, descIdx)}</td>
+        <td>${cellVal(row, qtyIdx)}</td>
+        <td style="font-family:monospace;font-size:12px;">$${isNaN(unit) ? '—' : unit.toFixed(4)}</td>
+        <td style="font-family:monospace;font-size:12px;">$${isNaN(extended) ? '—' : extended.toFixed(2)}</td>
+        <td><span class="badge ${cls}">${newRef || '—'}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function downloadCSV() {
+    const headerLine = headers.map(h => '"' + h.replace(/^"|"$/g,'').replace(/"/g,'""') + '"').join(',');
+    const dataLines  = modifiedRows.map(row =>
+      row.map(cell => '"' + (cell||'').replace(/^"|"$/g,'').replace(/"/g,'""') + '"').join(',')
+    );
+    const csv  = [headerLine, ...dataLines].join('\r\n') + '\r\n';
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = originalFileName; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function showError(id, msg) { const e = document.getElementById(id); e.textContent = msg; e.style.display = 'block'; }
+  function hideError(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+</body>
+</html>
