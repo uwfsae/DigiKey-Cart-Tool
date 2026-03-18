@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DigiKey Group Order Tool</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f2f2f2;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      color: #111;
+    }
+
+    /* ── Header ── */
+    .site-header {
+      background: #CC0000;
+      padding: 0 28px;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-logo { display: flex; align-items: center; gap: 10px; }
+    .header-logo h1 { font-size: 17px; font-weight: 600; color: #fff; letter-spacing: -0.01em; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+    .header-tagline { font-size: 13px; color: rgba(255,255,255,0.72); }
+    .refresh-btn {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.12s;
+    }
+    .refresh-btn:hover { background: rgba(255,255,255,0.28); }
+
+    /* ── Layout ── */
+    main {
+      flex: 1;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #ddd;
+      margin-bottom: 4px;
+    }
+    .tab {
+      padding: 10px 22px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.12s, border-color 0.12s;
+      user-select: none;
+    }
+    .tab:hover { color: #CC0000; }
+    .tab.active { color: #CC0000; border-bottom-color: #CC0000; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e0e0e0;
+      padding: 24px 28px;
+    }
+    .card + .card { margin-top: 16px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #CC0000;
+      margin-bottom: 10px;
+    }
+
+    /* ── Form fields ── */
+    .field-row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+    .field label { font-size: 12px; font-weight: 600; color: #555; }
+    .field input, .field textarea {
+      height: 40px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      padding: 0 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #111;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field input:focus, .field textarea:focus {
+      outline: none;
+      border-color: #CC0000;
+      box-shadow: 0 0 0 3px rgba(204,0,0,0.1);
+    }
+    .field textarea { height: 72px; padding: 10px 12px; resize: vertical; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #CC0000;
+      border-radius: 8px;
+      padding: 32px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { background: #fff5f5; }
+    .drop-zone.has-file { border-style: solid; background: #fff5f5; }
+    .drop-zone input[type="file"] { display: none; }
+    .drop-text { font-size: 14px; color: #555; }
+    .drop-text strong { color: #111; }
+    .drop-sub { font-size: 12px; color: #999; margin-top: 4px; }
+    .file-name { font-size: 13px; font-weight: 600; color: #CC0000; margin-top: 8px; display: none; }
+
+    /* ── Preview table (pre-submit) ── */
+    .preview-wrap { margin-top: 16px; display: none; }
+    .preview-title { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      width: 100%;
+      height: 44px;
+      background: #CC0000;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+      margin-top: 16px;
+    }
+    .btn-primary:hover:not(:disabled) { background: #aa0000; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-outline {
+      height: 40px;
+      background: #fff;
+      border: 1.5px solid #CC0000;
+      color: #CC0000;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 0 18px;
+      transition: background 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .btn-outline:hover { background: #fff0f0; }
+
+    .btn-danger {
+      height: 40px;
+      background: #fff;
+      border: 1.5px solid #999;
+      color: #666;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 0 18px;
+      transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .btn-danger:hover { border-color: #CC0000; color: #CC0000; }
+
+    /* ── Error / Success ── */
+    .msg {
+      font-size: 13px;
+      margin-top: 10px;
+      padding: 9px 13px;
+      border-radius: 6px;
+      display: none;
+    }
+    .msg.error   { background: #fff0f0; border-left: 3px solid #CC0000; color: #900; }
+    .msg.success { background: #edfaf3; border-left: 3px solid #1a7a45; color: #1a5c35; }
+
+    /* ── Order review ── */
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .order-stats { display: flex; gap: 24px; flex-wrap: wrap; }
+    .stat { }
+    .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+    .stat-value { font-size: 22px; font-weight: 700; color: #111; margin-top: 2px; }
+    .stat-value.red { color: #CC0000; }
+
+    .order-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    /* ── Grouping by member ── */
+    .member-group { margin-bottom: 20px; }
+    .member-group-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #f8f8f8;
+      border-radius: 8px 8px 0 0;
+      border: 1px solid #e8e8e8;
+      border-bottom: none;
+    }
+    .member-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #CC0000;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .member-info { flex: 1; }
+    .member-name { font-size: 14px; font-weight: 600; color: #111; }
+    .member-meta { font-size: 12px; color: #888; margin-top: 1px; }
+    .member-subtotal { font-size: 14px; font-weight: 700; color: #CC0000; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; border: 1px solid #e8e8e8; border-radius: 0 0 8px 8px; }
+    .member-group-header + .table-wrap { }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #eee;
+      background: #fafafa;
+      white-space: nowrap;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; color: #222; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+    .pn { font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; color: #555; }
+    .ref-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #fff0f0;
+      color: #CC0000;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 56px 24px;
+      color: #aaa;
+    }
+    .empty-state svg { margin-bottom: 14px; opacity: 0.4; }
+    .empty-state p { font-size: 15px; }
+    .empty-state small { font-size: 13px; display: block; margin-top: 4px; }
+
+    /* ── PIN modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px;
+      width: 320px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    }
+    .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .modal p  { font-size: 13px; color: #666; margin-bottom: 18px; }
+    .pin-input {
+      width: 100%;
+      height: 48px;
+      border: 1.5px solid #d0d0d0;
+      border-radius: 8px;
+      padding: 0 16px;
+      font-size: 22px;
+      letter-spacing: 0.3em;
+      text-align: center;
+      font-family: 'SF Mono', monospace;
+      color: #111;
+      transition: border-color 0.15s;
+    }
+    .pin-input:focus { outline: none; border-color: #CC0000; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .modal-actions button { flex: 1; height: 40px; border-radius: 6px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+    .modal-cancel { background: #fff; border: 1px solid #d0d0d0; color: #555; }
+    .modal-cancel:hover { background: #f5f5f5; }
+    .modal-confirm { background: #CC0000; border: none; color: #fff; }
+    .modal-confirm:hover { background: #aa0000; }
+    .pin-error { font-size: 12px; color: #CC0000; margin-top: 8px; display: none; text-align: center; }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(204,0,0,0.2);
+      border-top-color: #CC0000;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-row { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 40px; color: #888; font-size: 14px; }
+
+    /* ── Success screen ── */
+    .success-screen { display: none; text-align: center; padding: 40px 24px; }
+    .success-screen svg { color: #1a7a45; margin-bottom: 14px; }
+    .success-screen h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .success-screen p { font-size: 14px; color: #666; }
+    .success-screen .btn-outline { margin-top: 20px; }
+
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #bbb;
+    }
+
+    /* ── Config notice ── */
+    .config-banner {
+      background: #fff8e1;
+      border: 1px solid #f5c842;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #7a5c00;
+      display: none;
+      margin-bottom: 4px;
+    }
+    .config-banner strong { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="6" fill="rgba(255,255,255,0.2)"/>
+      <path d="M6 14L11 19L22 9" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h1>DigiKey Group Order</h1>
+  </div>
+  <div class="header-right">
+    <span class="header-tagline" id="headerStatus">Loading order…</span>
+    <button class="refresh-btn" onclick="loadPending()">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M1 7a6 6 0 1 0 1.2-3.6"/><path d="M1 2v3h3"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <div class="config-banner" id="configBanner">
+    <strong>Setup required:</strong> Open <code>index.html</code> and set <code>SCRIPT_URL</code> to your deployed Google Apps Script URL.
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('submit')">Submit cart</div>
+    <div class="tab" onclick="switchTab('order')">Current order</div>
+  </div>
+
+  <!-- ══ SUBMIT TAB ══ -->
+  <div class="tab-panel active" id="tab-submit">
+
+    <div class="card">
+      <div class="section-label">Your details</div>
+      <div class="field-row">
+        <div class="field">
+          <label for="memberName">Your name</label>
+          <input type="text" id="memberName" placeholder="e.g. Alex Chen" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="refInput">Customer reference code</label>
+          <input type="text" id="refInput" placeholder="e.g. BSPD, PF, CAN…" maxlength="64">
+        </div>
+      </div>
+      <div class="field">
+        <label for="projectNote">Project / purpose</label>
+        <textarea id="projectNote" placeholder="e.g. Motor controller rev 2 — capacitor restock"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Upload DigiKey cart CSV</div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".csv">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 10px;display:block;">
+          <rect x="4" y="6" width="28" height="24" rx="3"/>
+          <path d="M18 26V16M14 20l4-4 4 4"/>
+        </svg>
+        <div class="drop-text"><strong>Click to upload</strong> or drag &amp; drop</div>
+        <div class="drop-sub">Export from DigiKey: Cart → Export → CSV</div>
+        <div class="file-name" id="fileName"></div>
+      </div>
+      <div class="msg error" id="fileError"></div>
+
+      <div class="preview-wrap" id="previewWrap">
+        <div class="preview-title" id="previewTitle"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Part number</th><th>Description</th><th>Qty</th><th>Unit price</th><th>Extended</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="submitFormArea">
+      <button class="btn-primary" id="submitBtn" onclick="submitCart()" disabled>
+        Add to group order →
+      </button>
+      <div class="msg error"   id="submitError"></div>
+      <div class="msg success" id="submitSuccess"></div>
+    </div>
+
+    <div class="success-screen" id="successScreen">
+      <svg width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="26" cy="26" r="22"/>
+        <path d="M16 26l7 7 13-14"/>
+      </svg>
+      <h2>Cart submitted!</h2>
+      <p id="successDetail">Your items have been added to the group order.</p>
+      <button class="btn-outline" onclick="resetSubmitForm()">Submit another cart</button>
+    </div>
+
+  </div>
+
+  <!-- ══ ORDER TAB ══ -->
+  <div class="tab-panel" id="tab-order">
+    <div class="card">
+      <div class="order-header">
+        <div class="order-stats">
+          <div class="stat">
+            <div class="stat-label">Line items</div>
+            <div class="stat-value" id="statItems">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Members</div>
+            <div class="stat-value" id="statMembers">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Order total</div>
+            <div class="stat-value red" id="statTotal">—</div>
+          </div>
+        </div>
+        <div class="order-actions">
+          <button class="btn-outline" id="downloadBtn" onclick="downloadCSV()" disabled>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 2v8M5 7l3 3 3-3M2 13h12"/>
+            </svg>
+            Download CSV
+          </button>
+          <button class="btn-danger" id="clearBtn" onclick="openPinModal()" disabled>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 4h12M6 4V2h4v2M5 4l1 9h4l1-9"/>
+            </svg>
+            Clear order
+          </button>
+        </div>
+      </div>
+
+      <div id="orderContent">
+        <div class="loading-row"><span class="spinner"></span> Loading current order…</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>DigiKey Group Order Tool — UW Student Purchasing — Data stored in your club's Google Sheet. Nothing is uploaded to third-party servers.</footer>
+
+<!-- ── PIN Modal ── -->
+<div class="modal-overlay" id="pinModal">
+  <div class="modal">
+    <h2>Officer PIN required</h2>
+    <p>Enter the 4-digit PIN to clear the current order. This cannot be undone.</p>
+    <input class="pin-input" type="password" id="pinInput" maxlength="4" inputmode="numeric" placeholder="••••">
+    <div class="pin-error" id="pinError">Incorrect PIN. Try again.</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closePinModal()">Cancel</button>
+      <button class="modal-confirm" onclick="confirmClear()">Clear order</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── CONFIG — set this after deploying your Apps Script ──────
+  const SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+  // ────────────────────────────────────────────────────────────
+
+  let pendingRows = [];
+  let parsedItems = [];
+
+  // ── Init ────────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    if (SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+      document.getElementById('configBanner').style.display = 'block';
+    }
+    loadPending();
+    setupDropZone();
+  });
+
+  // ── Tabs ────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      const names = ['submit', 'order'];
+      t.classList.toggle('active', names[i] === name);
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'order') loadPending();
+  }
+
+  // ── Drop zone ────────────────────────────────────────────────
+  function setupDropZone() {
+    const dz = document.getElementById('dropZone');
+    dz.addEventListener('click', () => document.getElementById('fileInput').click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    document.getElementById('fileInput').addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+    document.getElementById('memberName').addEventListener('input', updateSubmitBtn);
+    document.getElementById('refInput').addEventListener('input', updateSubmitBtn);
+  }
+
+  function handleFile(file) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      showMsg('fileError', 'error', 'Please upload a .csv file exported from DigiKey.'); return;
+    }
+    hideMsg('fileError');
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileName').style.display = 'block';
+    document.getElementById('dropZone').classList.add('has-file');
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        parseCSV(e.target.result);
+        renderPreview();
+        updateSubmitBtn();
+      } catch(err) { showMsg('fileError', 'error', 'Could not parse CSV: ' + err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const headers = parseCSVLine(lines[0]);
+    const idx = name => headers.findIndex(h => clean(h).toLowerCase() === name.toLowerCase());
+
+    const iIndex   = idx('index');
+    const iQty     = idx('quantity');
+    const iPn      = idx('part number');
+    const iMfr     = idx('manufacturer part number');
+    const iDesc    = idx('description');
+    const iAvail   = idx('available');
+    const iBack    = idx('backorder');
+    const iUnit    = idx('unit price');
+    const iExt     = idx('extended price usd');
+
+    parsedItems = lines.slice(1).map(l => {
+      const r = parseCSVLine(l);
+      return {
+        index:         clean(r[iIndex]),
+        qty:           clean(r[iQty]),
+        partNumber:    clean(r[iPn]),
+        mfrPartNumber: clean(r[iMfr]),
+        description:   clean(r[iDesc]),
+        available:     clean(r[iAvail]),
+        backorder:     clean(r[iBack]),
+        unitPrice:     clean(r[iUnit]),
+        extendedPrice: clean(r[iExt])
+      };
+    }).filter(r => r.partNumber);
+  }
+
+  function parseCSVLine(line) {
+    const result = []; let inQ = false, cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    result.push(cur); return result;
+  }
+
+  function clean(v) { return (v || '').replace(/^"|"$/g, '').trim(); }
+
+  function renderPreview() {
+    const wrap = document.getElementById('previewWrap');
+    const body = document.getElementById('previewBody');
+    const title = document.getElementById('previewTitle');
+    let total = 0;
+    parsedItems.forEach(r => { const v = parseFloat(r.extendedPrice); if (!isNaN(v)) total += v; });
+    title.textContent = parsedItems.length + ' items · $' + total.toFixed(2) + ' subtotal';
+    body.innerHTML = parsedItems.map(r => `
+      <tr>
+        <td style="color:#aaa;font-size:12px;">${r.index}</td>
+        <td><span class="pn">${r.partNumber}</span></td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#666;">${r.description}</td>
+        <td>${r.qty}</td>
+        <td style="font-family:monospace;font-size:12px;">$${parseFloat(r.unitPrice||0).toFixed(4)}</td>
+        <td style="font-family:monospace;font-size:12px;">$${parseFloat(r.extendedPrice||0).toFixed(2)}</td>
+      </tr>`).join('');
+    wrap.style.display = 'block';
+  }
+
+  function updateSubmitBtn() {
+    const name = document.getElementById('memberName').value.trim();
+    const ref  = document.getElementById('refInput').value.trim();
+    document.getElementById('submitBtn').disabled = !(name && ref && parsedItems.length > 0);
+  }
+
+  // ── Submit ───────────────────────────────────────────────────
+  async function submitCart() {
+    const name    = document.getElementById('memberName').value.trim();
+    const ref     = document.getElementById('refInput').value.trim();
+    const project = document.getElementById('projectNote').value.trim();
+
+    if (!name || !ref || parsedItems.length === 0) return;
+
+    hideMsg('submitError'); hideMsg('submitSuccess');
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="border-top-color:#fff;border-color:rgba(255,255,255,0.3);"></span> Submitting…';
+
+    try {
+      const res = await apiFetch({ action: 'submit', memberName: name, reference: ref, project, items: parsedItems });
+      if (!res.ok) throw new Error(res.error || 'Submission failed');
+      document.getElementById('submitFormArea').style.display = 'none';
+      document.getElementById('successDetail').textContent =
+        res.submitted + ' items added to the group order under "' + ref + '".';
+      document.getElementById('successScreen').style.display = 'block';
+      loadPending();
+    } catch(err) {
+      showMsg('submitError', 'error', err.message);
+      btn.disabled = false;
+      btn.textContent = 'Add to group order →';
+    }
+  }
+
+  function resetSubmitForm() {
+    parsedItems = [];
+    document.getElementById('memberName').value = '';
+    document.getElementById('refInput').value = '';
+    document.getElementById('projectNote').value = '';
+    document.getElementById('fileName').style.display = 'none';
+    document.getElementById('dropZone').classList.remove('has-file');
+    document.getElementById('previewWrap').style.display = 'none';
+    document.getElementById('fileInput').value = '';
+    document.getElementById('successScreen').style.display = 'none';
+    document.getElementById('submitFormArea').style.display = 'block';
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true; btn.textContent = 'Add to group order →';
+    hideMsg('submitError'); hideMsg('submitSuccess');
+  }
+
+  // ── Load pending ─────────────────────────────────────────────
+  async function loadPending() {
+    document.getElementById('orderContent').innerHTML =
+      '<div class="loading-row"><span class="spinner"></span> Loading current order…</div>';
+    try {
+      const res = await apiFetch({ action: 'getPending' });
+      if (!res.ok) throw new Error(res.error);
+      pendingRows = res.rows;
+      renderOrder();
+    } catch(err) {
+      document.getElementById('orderContent').innerHTML =
+        '<div class="loading-row" style="color:#CC0000;">Failed to load: ' + err.message + '</div>';
+      document.getElementById('headerStatus').textContent = 'Could not connect';
+    }
+  }
+
+  function renderOrder() {
+    const rows = pendingRows;
+    const content = document.getElementById('orderContent');
+    const dl  = document.getElementById('downloadBtn');
+    const clr = document.getElementById('clearBtn');
+
+    if (rows.length === 0) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="6" y="8" width="28" height="26" rx="3"/>
+            <path d="M14 20h12M14 26h7"/>
+          </svg>
+          <p>No items in the current order</p>
+          <small>Members can add items using the Submit cart tab</small>
+        </div>`;
+      dl.disabled = true; clr.disabled = true;
+      document.getElementById('statItems').textContent = '0';
+      document.getElementById('statMembers').textContent = '0';
+      document.getElementById('statTotal').textContent = '$0.00';
+      document.getElementById('headerStatus').textContent = 'Order is empty';
+      return;
+    }
+
+    let total = 0;
+    rows.forEach(r => { const v = parseFloat(r.extendedPrice); if (!isNaN(v)) total += v; });
+    const members = [...new Set(rows.map(r => r.memberName))];
+
+    document.getElementById('statItems').textContent = rows.length;
+    document.getElementById('statMembers').textContent = members.length;
+    document.getElementById('statTotal').textContent = '$' + total.toFixed(2);
+    document.getElementById('headerStatus').textContent =
+      rows.length + ' items · $' + total.toFixed(2);
+    dl.disabled = false; clr.disabled = false;
+
+    // Group by member
+    const groups = {};
+    rows.forEach(r => {
+      const key = r.memberName || 'Unknown';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+
+    content.innerHTML = Object.entries(groups).map(([name, items]) => {
+      let sub = 0;
+      items.forEach(r => { const v = parseFloat(r.extendedPrice); if (!isNaN(v)) sub += v; });
+      const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      const proj = items[0].project || '';
+      const ref  = items[0].reference || '';
+      const time = items[0].submittedAt ? new Date(items[0].submittedAt).toLocaleDateString() : '';
+      return `
+        <div class="member-group">
+          <div class="member-group-header">
+            <div class="member-avatar">${initials}</div>
+            <div class="member-info">
+              <div class="member-name">${name}</div>
+              <div class="member-meta">${[proj, ref, time].filter(Boolean).join(' · ')}</div>
+            </div>
+            <div class="member-subtotal">$${sub.toFixed(2)}</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>#</th><th>Part number</th><th>Description</th>
+                <th>Qty</th><th>Unit price</th><th>Extended</th><th>Reference</th>
+              </tr></thead>
+              <tbody>
+                ${items.map((r, i) => `<tr>
+                  <td style="color:#aaa;font-size:12px;">${r.index || (i+1)}</td>
+                  <td><span class="pn">${r.partNumber}</span></td>
+                  <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#666;">${r.description}</td>
+                  <td>${r.qty}</td>
+                  <td style="font-family:monospace;font-size:12px;">$${parseFloat(r.unitPrice||0).toFixed(4)}</td>
+                  <td style="font-family:monospace;font-size:12px;">$${parseFloat(r.extendedPrice||0).toFixed(2)}</td>
+                  <td><span class="ref-badge">${r.reference}</span></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Download CSV ─────────────────────────────────────────────
+  function downloadCSV() {
+    if (!pendingRows.length) return;
+    const headers = [
+      'Index','Quantity','Part Number','Manufacturer Part Number',
+      'Description','Customer Reference','Available','Backorder',
+      'Unit Price','Extended Price USD'
+    ];
+    const rows = pendingRows.map((r, i) => [
+      r.index || (i + 1),
+      r.qty,
+      r.partNumber,
+      r.mfrPartNumber,
+      r.description,
+      r.reference,
+      r.available,
+      r.backorder,
+      r.unitPrice,
+      r.extendedPrice
+    ]);
+    const csv = [headers, ...rows].map(r =>
+      r.map(cell => '"' + String(cell||'').replace(/"/g,'""') + '"').join(',')
+    ).join('\r\n') + '\r\n';
+
+    const date = new Date().toISOString().slice(0,10);
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'group_order_' + date + '.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── PIN / Clear ──────────────────────────────────────────────
+  function openPinModal() {
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinError').style.display = 'none';
+    document.getElementById('pinModal').classList.add('open');
+    setTimeout(() => document.getElementById('pinInput').focus(), 100);
+  }
+  function closePinModal() { document.getElementById('pinModal').classList.remove('open'); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closePinModal();
+  });
+
+  async function confirmClear() {
+    const pin = document.getElementById('pinInput').value.trim();
+    if (pin.length !== 4) { document.getElementById('pinError').style.display = 'block'; return; }
+    try {
+      const res = await apiFetch({ action: 'clearOrder', pin });
+      if (!res.ok) { document.getElementById('pinError').style.display = 'block'; return; }
+      closePinModal();
+      pendingRows = [];
+      renderOrder();
+    } catch(err) {
+      document.getElementById('pinError').textContent = err.message;
+      document.getElementById('pinError').style.display = 'block';
+    }
+  }
+
+  // ── API helper ───────────────────────────────────────────────
+  async function apiFetch(body) {
+    const params = new URLSearchParams({ payload: JSON.stringify(body) });
+    const res = await fetch(SCRIPT_URL + '?' + params.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    return res.json();
+  }
+
+  // ── Msg helpers ──────────────────────────────────────────────
+  function showMsg(id, type, text) {
+    const el = document.getElementById(id);
+    el.textContent = text; el.className = 'msg ' + type; el.style.display = 'block';
+  }
+  function hideMsg(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+</body>
+</html>
